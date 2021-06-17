@@ -237,6 +237,8 @@ struct flb_oauth2 *flb_oauth2_create(struct flb_config *config,
     /* Remove Upstream Async flag */
     ctx->u->flags &= ~(FLB_IO_ASYNC);
 
+    ctx->u->net.keepalive = FLB_FALSE;
+
     free_temporary_buffers();
     return ctx;
 
