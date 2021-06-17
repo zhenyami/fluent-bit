@@ -74,6 +74,8 @@ struct flb_dns_lookup_context {
     struct flb_coro *coroutine;
     struct addrinfo *result;
     /* result is a synthetized result, don't call freeaddrinfo on it */
+
+    struct mk_list _head;
 };
 
 #ifndef TCP_FASTOPEN

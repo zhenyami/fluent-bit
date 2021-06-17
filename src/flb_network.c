@@ -53,9 +53,14 @@
 #define SOL_TCP IPPROTO_TCP
 #endif
 
+__thread struct mk_list *dns_list;
+
 void flb_net_init()
 {
     int result;
+
+    dns_list = flb_malloc(sizeof(struct mk_list));
+    mk_list_init(dns_list);
 
     result = ares_library_init_mem(ARES_LIB_INIT_ALL, flb_malloc, flb_free, flb_realloc);
 
@@ -626,6 +631,9 @@ struct flb_dns_lookup_context *flb_net_dns_lookup_context_create(struct mk_event
                              flb_net_ares_sock_create_callback,
                              context);
 
+    mk_list_add(&context->_head, dns_list);
+    printf("dns context created, list size = %i\n", mk_list_size(dns_list));
+
     return context;
 }
 
@@ -635,6 +643,7 @@ void flb_net_dns_lookup_context_destroy(struct flb_dns_lookup_context *context)
 
     ares_destroy(context->ares_channel);
 
+    mk_list_del(&context->_head);
     flb_free(context);
 }
 
