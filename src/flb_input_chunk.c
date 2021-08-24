@@ -882,10 +882,11 @@ int flb_input_chunk_set_up(struct flb_input_chunk *ic)
     return 0;
 }
 
+
 /* Append a RAW MessagPack buffer to the input instance */
-int flb_input_chunk_append_raw(struct flb_input_instance *in,
-                               const char *tag, size_t tag_len,
-                               const void *buf, size_t buf_size)
+static int input_chunk_append_raw(struct flb_input_instance *in,
+                                  const char *tag, size_t tag_len,
+                                  const void *buf, size_t buf_size)
 {
     int ret;
     int set_down = FLB_FALSE;
@@ -1107,6 +1108,55 @@ int flb_input_chunk_append_raw(struct flb_input_instance *in,
     }
 
     flb_input_chunk_protect(in);
+    return 0;
+}
+
+/* Append a RAW MessagPack buffer to the input instance */
+int flb_input_chunk_append_raw(struct flb_input_instance *in,
+                               const char *tag, size_t tag_len,
+                               const void *buf, size_t buf_size)
+{
+    int ok = MSGPACK_UNPACK_SUCCESS;
+    int ret;
+    size_t pre = 0;
+    size_t off = 0;
+    size_t recs_size;
+    char *recs_buf;
+    msgpack_unpacked result;
+
+    if (buf_size <= (FLB_INPUT_CHUNK_FS_MAX_SIZE)) {
+        return input_chunk_append_raw(in, tag, tag_len, buf, buf_size);
+    }
+
+    /*
+     * slow path: create chunks by iterating records. the best way to avoid
+     * this section is to let the caller limit it msgpack buffer size.
+     */
+    msgpack_unpacked_init(&result);
+    while (msgpack_unpack_next(&result, buf, buf_size, &off) == ok) {
+        recs_buf = (char *) buf + pre;
+        recs_size = (off - pre);
+
+        if (recs_size >= FLB_INPUT_CHUNK_FS_MAX_SIZE) {
+            ret = input_chunk_append_raw(in, tag, tag_len, recs_buf, recs_size);
+            if (ret == -1) {
+                msgpack_unpacked_destroy(&result);
+                return -1;
+            }
+            pre = off;
+        }
+    }
+
+    if (pre < buf_size) {
+        recs_buf = (char *) (buf + pre);
+        recs_size = buf_size - pre;
+        ret = input_chunk_append_raw(in, tag, tag_len, recs_buf, recs_size);
+        if (ret == -1) {
+            msgpack_unpacked_destroy(&result);
+            return -1;
+        }
+    }
+    msgpack_unpacked_destroy(&result);
     return 0;
 }
 
